@@ -24,7 +24,7 @@ from dataclasses import dataclass
 
 from dotenv import load_dotenv
 
-from agents.settings import MissingAPIKeyError
+from agents.settings import EFFORT, MissingAPIKeyError
 
 load_dotenv()
 
@@ -195,7 +195,7 @@ def build_chat_model(provider=None, streaming=False, **overrides):
             model=model,
             max_tokens=MAX_TOKENS,
             thinking={"type": "adaptive"},
-            output_config={"effort": os.getenv("ANTHROPIC_EFFORT", "medium")},
+            output_config={"effort": EFFORT},
             streaming=streaming,
             **overrides,
         )

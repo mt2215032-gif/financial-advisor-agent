@@ -9,6 +9,7 @@ import os
 import sys
 
 import pytest
+from langchain_core.messages import AIMessage, AIMessageChunk
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -21,6 +22,7 @@ from agents.providers import (
     get_provider,
     model_name_for,
 )
+import advisor_agent
 from agents.settings import MissingAPIKeyError
 
 
@@ -158,3 +160,98 @@ def test_credential_error_is_catchable_as_the_original_type(monkeypatch):
 
     with pytest.raises(MissingAPIKeyError):
         build_chat_model("openai")
+
+
+# --- provider-agnostic response handling --------------------------------------
+# Claude returns a list of content blocks (thinking, text, ...); OpenAI and
+# Ollama return a plain string. The advisor path must handle both.
+
+class _FakeModel:
+    """Stands in for any LangChain chat model, with configurable content."""
+
+    def __init__(self, content, chunks=None):
+        self._content = content
+        self._chunks = chunks or []
+
+    def invoke(self, messages):
+        return AIMessage(content=self._content)
+
+    def stream(self, messages):
+        for chunk in self._chunks:
+            yield AIMessageChunk(content=chunk)
+
+
+def _patch_model(monkeypatch, model):
+    monkeypatch.setattr(advisor_agent, "build_chat_model",
+                        lambda **kwargs: model)
+
+
+def test_plain_string_response_is_returned_as_is(monkeypatch):
+    """OpenAI and Ollama shape: content is already a string."""
+    _patch_model(monkeypatch, _FakeModel("Save $1,800/mo."))
+
+    assert advisor_agent.run_financial_advisor() == "Save $1,800/mo."
+
+
+def test_block_list_response_drops_thinking(monkeypatch):
+    """Claude shape: a list of blocks, only the text ones count."""
+    _patch_model(monkeypatch, _FakeModel([
+        {"type": "thinking", "thinking": "internal"},
+        {"type": "text", "text": "Save $1,800/mo."},
+    ]))
+
+    assert advisor_agent.run_financial_advisor() == "Save $1,800/mo."
+
+
+def test_streaming_plain_string_chunks(monkeypatch):
+    """Non-Anthropic providers stream bare strings, not blocks."""
+    _patch_model(monkeypatch, _FakeModel("", chunks=["Save ", "$1,800", "/mo."]))
+
+    assert "".join(advisor_agent.stream_financial_advisor()) == "Save $1,800/mo."
+
+
+def test_streaming_block_chunks(monkeypatch):
+    """Anthropic streams blocks; empty thinking deltas must not appear."""
+    _patch_model(monkeypatch, _FakeModel("", chunks=[
+        [{"type": "thinking", "thinking": "..."}],
+        [{"type": "text", "text": "Save "}],
+        [{"type": "text", "text": "$1,800/mo."}],
+    ]))
+
+    assert "".join(advisor_agent.stream_financial_advisor()) == "Save $1,800/mo."
+
+
+def test_followup_works_on_a_plain_string_provider(monkeypatch):
+    _patch_model(monkeypatch, _FakeModel("Yes, in about 31 months."))
+
+    answer = advisor_agent.answer_followup(
+        "How long for the house?", history=[("user", "hi")]
+    )
+    assert answer == "Yes, in about 31 months."
+
+
+# --- import-time resilience ---------------------------------------------------
+
+def test_model_attribute_follows_the_active_provider(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    assert advisor_agent.MODEL == "gpt-4o"
+
+    monkeypatch.setenv("LLM_PROVIDER", "anthropic")
+    assert advisor_agent.MODEL == "claude-opus-5"
+
+
+def test_bad_provider_does_not_break_import(monkeypatch):
+    """A typo in LLM_PROVIDER must not crash the app before it can render;
+    the error surfaces on use, where the UI can catch and display it."""
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
+
+    import importlib
+    importlib.reload(advisor_agent)          # no raise
+
+    with pytest.raises(UnknownProviderError):
+        advisor_agent.MODEL
+
+
+def test_unknown_attribute_still_raises_attribute_error():
+    with pytest.raises(AttributeError, match="no attribute"):
+        advisor_agent.not_a_real_attribute

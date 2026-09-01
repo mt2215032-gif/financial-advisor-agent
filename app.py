@@ -9,7 +9,12 @@ from advisor_agent import (
     stream_financial_advisor,
     stream_followup,
 )
-from agents.providers import PROVIDERS, model_name_for, get_provider
+from agents.providers import (
+    PROVIDERS,
+    UnknownProviderError,
+    get_provider,
+    model_name_for,
+)
 from mock_data import get_user_financial_data, list_users, summarize_finances
 
 st.set_page_config(page_title="Financial Advisory Agent", page_icon="💰")
@@ -38,7 +43,13 @@ with st.sidebar:
     st.header("Model")
 
     provider_keys = list(PROVIDERS)
-    active = get_provider().key
+    try:
+        active = get_provider().key
+    except UnknownProviderError as err:
+        # A typo in LLM_PROVIDER should not take the whole app down.
+        st.error(str(err))
+        st.stop()
+
     provider_key = st.selectbox(
         "Provider",
         options=provider_keys,

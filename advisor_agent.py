@@ -1,7 +1,5 @@
 """LangChain agent logic for the financial advisory agent."""
 
-import os
-
 try:
     from dotenv import load_dotenv
 except ImportError as err:
@@ -21,21 +19,41 @@ load_dotenv()
 # drift apart. `providers` picks Claude, OpenAI, or an open-source model from
 # LLM_PROVIDER and sends only the parameters that provider accepts.
 from agents.providers import (  # noqa: E402  (after load_dotenv by design)
-    MissingCredentialError,
     build_chat_model,
-    describe_active,
     get_provider,
     model_name_for,
 )
-from agents.settings import (  # noqa: E402
-    EFFORT,
-    MAX_TOKENS,
-    MissingAPIKeyError,
-)
+from agents.settings import EFFORT, MissingAPIKeyError  # noqa: E402
 
-# Kept for callers that just want "which model is this". Resolved through the
-# provider layer so it follows LLM_PROVIDER rather than assuming Claude.
-MODEL = model_name_for(get_provider())
+# Declared, not assigned: the annotation alone does not create the attribute,
+# so __getattr__ below still fires on access.
+MODEL: str
+
+
+def __getattr__(name):
+    """Resolve MODEL on access rather than at import.
+
+    A typo in LLM_PROVIDER would otherwise raise while this module is being
+    imported, which crashes the Streamlit app before it can render anything.
+    Deferring it lets the caller catch UnknownProviderError and show the
+    message properly. (PEP 562 module-level __getattr__.)
+    """
+    if name == "MODEL":
+        return model_name_for(get_provider())
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+# EFFORT and MissingAPIKeyError are re-exported: callers and tests read them
+# from here rather than reaching into the agents package.
+__all__ = [
+    "MODEL",
+    "EFFORT",
+    "MissingAPIKeyError",
+    "build_llm",
+    "run_financial_advisor",
+    "stream_financial_advisor",
+    "answer_followup",
+    "stream_followup",
+]
 
 
 def build_llm(streaming=False, provider=None):
