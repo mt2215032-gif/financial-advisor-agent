@@ -1,0 +1,67 @@
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI  # swap for your provider (e.g. ChatAnthropic)
+from langchain_core.output_parsers import StrOutputParser
+
+# --- Prompt template ---
+advisor_template = ChatPromptTemplate.from_template("""
+You are an AI financial education assistant.
+Given the user's financial profile below:
+- Summarize their financial status
+- Suggest a monthly savings goal
+- Provide 3 personalized financial suggestions
+- Recommend general investment considerations based on their risk profile
+
+User Profile:
+Income: ${income}
+Expenses:
+{expenses}
+Goals: {goals}
+Risk: {risk}
+
+Respond clearly and concisely.
+Important: This is educational information only and not professional financial advice.
+""")
+
+# --- Model + chain ---
+llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.3)
+chain = advisor_template | llm | StrOutputParser()
+
+
+def format_expenses(expenses: dict) -> str:
+    """Turn a dict of expenses into a readable bullet list."""
+    return "\n".join(f"- {category}: ${amount}" for category, amount in expenses.items())
+
+
+def get_financial_advice(income: float, expenses: dict, goals: str, risk: str) -> str:
+    """Run the advisor chain with a user's financial profile."""
+    result = chain.invoke({
+        "income": income,
+        "expenses": format_expenses(expenses),
+        "goals": goals,
+        "risk": risk,
+    })
+    return result
+
+
+if __name__ == "__main__":
+    user_profile = {
+        "income": 6000,
+        "expenses": {
+            "Rent": 1800,
+            "Groceries": 500,
+            "Transportation": 300,
+            "Subscriptions": 100,
+            "Entertainment": 200,
+        },
+        "goals": "Save for a house down payment in 5 years, build an emergency fund",
+        "risk": "Moderate",
+    }
+
+    advice = get_financial_advice(
+        income=user_profile["income"],
+        expenses=user_profile["expenses"],
+        goals=user_profile["goals"],
+        risk=user_profile["risk"],
+    )
+
+    print(advice)

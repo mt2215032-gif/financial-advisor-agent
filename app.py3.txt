@@ -1,0 +1,34 @@
+import streamlit as st
+from advisor_agent import run_financial_advisor
+
+
+st.set_page_config(
+    page_title="Financial Advisor",
+    page_icon="💰"
+)
+
+st.title("Individualized Financial Advisory Agent 💰")
+
+st.write(
+    "Get AI-generated financial insights based on income, "
+    "expenses, goals, and risk tolerance."
+)
+
+if st.button("Get Advice"):
+
+    with st.spinner("Analyzing your financial profile..."):
+
+        try:
+            result = run_financial_advisor()
+
+            st.markdown("### Your Financial Plan")
+            st.write(result)
+
+        except Exception as e:
+            st.error(f"Error: {e}")
+
+st.divider()
+
+st.caption(
+    "Educational purposes only. This is not professional financial advice."
+)

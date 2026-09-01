@@ -1,0 +1,31 @@
+from langchain_openai import ChatOpenAI
+
+from advisor_prompt import advisor_template
+from mock_data import get_user_financial_data
+
+
+def run_financial_advisor():
+
+    user_data = get_user_financial_data()
+
+    expenses = "\n".join(
+        f"{category}: ${amount}"
+        for category, amount
+        in user_data["monthly_expenses"].items()
+    )
+
+    messages = advisor_template.format_messages(
+        income=user_data["income"],
+        expenses=expenses,
+        goals=", ".join(user_data["financial_goals"]),
+        risk=user_data["risk_tolerance"]
+    )
+
+    llm = ChatOpenAI(
+        model="gpt-4o-mini",
+        temperature=0.4
+    )
+
+    response = llm.invoke(messages)
+
+    return response.content
