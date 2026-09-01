@@ -1,4 +1,28 @@
 """
+CrewAI Financial Advisor Agent
+"""
+
+from crewai import LLM, Agent, Crew, Process, Task
+from crewai.tools import tool
+
+from agents.settings import MAX_TOKENS, MODEL, require_api_key
+from agents.tools import (
+    get_financial_profile,
+    project_savings,
+    time_to_goal,
+)
+
+CREW_MODEL = f"anthropic/{MODEL}"
+
+
+
+
+
+
+
+
+
+"""
 CrewAI team: analyst -> planner -> writer, running on Claude.
 
 This module requires CrewAI to be installed in requirements.txt.
