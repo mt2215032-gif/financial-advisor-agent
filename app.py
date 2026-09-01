@@ -1,13 +1,15 @@
 """Streamlit UI for the Individualized Financial Advisory Agent."""
 
+import os
+
 import streamlit as st
 
 from advisor_agent import (
-    MODEL,
     MissingAPIKeyError,
     stream_financial_advisor,
     stream_followup,
 )
+from agents.providers import PROVIDERS, model_name_for, get_provider
 from mock_data import get_user_financial_data, list_users, summarize_finances
 
 st.set_page_config(page_title="Financial Advisory Agent", page_icon="💰")
@@ -33,11 +35,31 @@ with st.sidebar:
         format_func=lambda uid: f"{users[uid]} ({uid})",
     )
     st.divider()
-    st.caption(f"Model: `{MODEL}`")
+    st.header("Model")
+
+    provider_keys = list(PROVIDERS)
+    active = get_provider().key
+    provider_key = st.selectbox(
+        "Provider",
+        options=provider_keys,
+        index=provider_keys.index(active),
+        format_func=lambda key: PROVIDERS[key].label,
+        help="Set the default with LLM_PROVIDER in .env",
+    )
+    provider = PROVIDERS[provider_key]
+    st.caption(f"Model: `{model_name_for(provider)}`")
+
+    if provider.env_key and not os.getenv(provider.env_key):
+        st.warning(f"{provider.env_key} is not set.", icon="⚠️")
+    elif provider.env_key is None:
+        st.caption("Runs locally — no API key needed.")
 
 # Switching profiles invalidates the plan and the conversation about it.
-if st.session_state.get("user_id") != user_id:
+if (st.session_state.get("user_id"), st.session_state.get("provider")) != (
+    user_id, provider_key
+):
     st.session_state.user_id = user_id
+    st.session_state.provider = provider_key
     st.session_state.plan = None
     st.session_state.history = []
 
@@ -100,12 +122,12 @@ if st.button("Get Advice", type="primary"):
     try:
         with st.chat_message("assistant"):
             st.session_state.plan = st.write_stream(
-                stream_financial_advisor(user_data=user_data)
+                stream_financial_advisor(user_data=user_data, provider=provider_key)
             )
     except MissingAPIKeyError as err:
         st.error(str(err))
     except Exception as err:  # network failure, rate limit, bad model id
-        st.error(f"Could not reach Claude: {err}")
+        st.error(f"Could not reach {provider.label}: {err}")
 
 elif st.session_state.plan:
     with st.chat_message("assistant"):
@@ -137,13 +159,14 @@ if st.session_state.plan:
                         # separately as the question.
                         history=st.session_state.history[:-1],
                         user_data=user_data,
+                        provider=provider_key,
                     )
                 )
             st.session_state.history.append(("assistant", answer))
         except MissingAPIKeyError as err:
             st.error(str(err))
         except Exception as err:
-            st.error(f"Could not reach Claude: {err}")
+            st.error(f"Could not reach {provider.label}: {err}")
 
 st.divider()
 st.caption(

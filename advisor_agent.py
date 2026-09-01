@@ -2,43 +2,45 @@
 
 import os
 
-from dotenv import load_dotenv
-from langchain_anthropic import ChatAnthropic
+try:
+    from dotenv import load_dotenv
+except ImportError as err:
+    # The lab handout's `pip install openai langchain streamlit pandas` misses
+    # langchain-anthropic and python-dotenv, so point at the real install line.
+    raise ImportError(
+        f"Missing dependency '{err.name}'. Install this project's requirements:\n"
+        f"    pip install -r requirements.txt"
+    ) from err
 
 from advisor_prompt import advisor_template, followup_template
 from mock_data import format_expenses_for_prompt, get_user_financial_data
 
 load_dotenv()
 
-# Claude Opus 5 rejects temperature/top_p/top_k, so depth is steered with
-# adaptive thinking + effort instead of a sampling temperature.
-MODEL = os.getenv("ANTHROPIC_MODEL", "claude-opus-5")
-EFFORT = os.getenv("ANTHROPIC_EFFORT", "medium")
-MAX_TOKENS = 16000
+# Model config is shared with the agents/ package so the implementations cannot
+# drift apart. `providers` picks Claude, OpenAI, or an open-source model from
+# LLM_PROVIDER and sends only the parameters that provider accepts.
+from agents.providers import (  # noqa: E402  (after load_dotenv by design)
+    MissingCredentialError,
+    build_chat_model,
+    describe_active,
+    get_provider,
+    model_name_for,
+)
+from agents.settings import (  # noqa: E402
+    EFFORT,
+    MAX_TOKENS,
+    MissingAPIKeyError,
+)
+
+# Kept for callers that just want "which model is this". Resolved through the
+# provider layer so it follows LLM_PROVIDER rather than assuming Claude.
+MODEL = model_name_for(get_provider())
 
 
-class MissingAPIKeyError(RuntimeError):
-    """Raised when no Anthropic credential is available."""
-
-
-def _require_api_key():
-    if not os.getenv("ANTHROPIC_API_KEY"):
-        raise MissingAPIKeyError(
-            "ANTHROPIC_API_KEY is not set. Copy .env.example to .env and add "
-            "your key from https://console.anthropic.com/settings/keys"
-        )
-
-
-def build_llm(streaming=False):
-    """Create the Claude chat model used by every call in this module."""
-    _require_api_key()
-    return ChatAnthropic(
-        model=MODEL,
-        max_tokens=MAX_TOKENS,
-        thinking={"type": "adaptive"},
-        output_config={"effort": EFFORT},
-        streaming=streaming,
-    )
+def build_llm(streaming=False, provider=None):
+    """Create the chat model for the active provider."""
+    return build_chat_model(provider=provider, streaming=streaming)
 
 
 def _extract_text(content):
@@ -84,27 +86,28 @@ def _format_history(history, limit=6):
     )
 
 
-def run_financial_advisor(user_id="user123", user_data=None):
+def run_financial_advisor(user_id="user123", user_data=None, provider=None):
     """Generate the full financial plan for a user. Returns markdown text."""
     user_data = _resolve(user_id, user_data)
     messages = advisor_template.format_messages(**_profile_variables(user_data))
 
-    response = build_llm().invoke(messages)
+    response = build_llm(provider=provider).invoke(messages)
     return _extract_text(response.content)
 
 
-def stream_financial_advisor(user_id="user123", user_data=None):
+def stream_financial_advisor(user_id="user123", user_data=None, provider=None):
     """Same as run_financial_advisor, but yields text chunks as they arrive."""
     user_data = _resolve(user_id, user_data)
     messages = advisor_template.format_messages(**_profile_variables(user_data))
 
-    for chunk in build_llm(streaming=True).stream(messages):
+    for chunk in build_llm(streaming=True, provider=provider).stream(messages):
         text = _extract_text(chunk.content)
         if text:
             yield text
 
 
-def answer_followup(question, history=None, user_id="user123", user_data=None):
+def answer_followup(question, history=None, user_id="user123", user_data=None,
+                    provider=None):
     """Answer a follow-up question about an already-delivered plan."""
     user_data = _resolve(user_id, user_data)
     messages = followup_template.format_messages(
@@ -113,11 +116,12 @@ def answer_followup(question, history=None, user_id="user123", user_data=None):
         **_profile_variables(user_data),
     )
 
-    response = build_llm().invoke(messages)
+    response = build_llm(provider=provider).invoke(messages)
     return _extract_text(response.content)
 
 
-def stream_followup(question, history=None, user_id="user123", user_data=None):
+def stream_followup(question, history=None, user_id="user123", user_data=None,
+                    provider=None):
     """Same as answer_followup, but yields text chunks as they arrive."""
     user_data = _resolve(user_id, user_data)
     messages = followup_template.format_messages(
@@ -126,7 +130,7 @@ def stream_followup(question, history=None, user_id="user123", user_data=None):
         **_profile_variables(user_data),
     )
 
-    for chunk in build_llm(streaming=True).stream(messages):
+    for chunk in build_llm(streaming=True, provider=provider).stream(messages):
         text = _extract_text(chunk.content)
         if text:
             yield text

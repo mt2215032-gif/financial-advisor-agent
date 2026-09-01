@@ -1,0 +1,21 @@
+# Optional extras for the framework agents in agents/.
+# Install alongside requirements.txt:  pip install -r requirements-agents.txt
+#
+# Not needed for the Streamlit app, the native SDK loop, or the LangGraph
+# agent - those run on requirements.txt alone.
+
+# --- CrewAI -------------------------------------------------------------------
+# Install plain crewai, NOT crewai[anthropic]: that extra pins anthropic~=0.73,
+# which breaks the native SDK loop (needs anthropic>=1.0). CrewAI's bundled
+# Anthropic provider works fine against anthropic 1.x - verified on 1.2.0.
+crewai>=1.15,<2.0
+
+# --- AutoGen ------------------------------------------------------------------
+# The current package, not the retired `autogen` / `pyautogen` namespace.
+autogen-agentchat>=0.7,<0.8
+autogen-ext[anthropic]>=0.7,<0.8
+
+# autogen_ext.models.anthropic imports tiktoken at module load, but the
+# [anthropic] extra does not declare it - without this line the import fails
+# with ModuleNotFoundError: No module named 'tiktoken'.
+tiktoken>=0.8
