@@ -249,9 +249,9 @@ def test_bad_provider_does_not_break_import(monkeypatch):
     importlib.reload(advisor_agent)          # no raise
 
     with pytest.raises(UnknownProviderError):
-        advisor_agent.MODEL
+        _ = advisor_agent.MODEL   # the access itself is what must raise
 
 
 def test_unknown_attribute_still_raises_attribute_error():
     with pytest.raises(AttributeError, match="no attribute"):
-        advisor_agent.not_a_real_attribute
+        _ = advisor_agent.not_a_real_attribute

@@ -110,12 +110,49 @@ See `.env.example` for the full annotated list.
 
 ---
 
+## Check it can actually reach a model
+
+Before running the app, confirm a provider replies:
+
+```bash
+python -m agents.smoke          # the provider LLM_PROVIDER selects
+python -m agents.smoke --all    # try every one
+```
+
+It makes one real call and prints the reply, the latency, and token usage —
+or the exact reason it failed (key missing, package missing, Ollama not
+running). Exit code is 0 if anything replied, 1 if nothing did.
+
+```
+[Claude (Anthropic)]
+  model: claude-opus-5
+  OK - replied in 1.4s
+  reply: 'WORKING'
+  tokens: 18 in / 4 out
+```
+
+## Ask questions in the terminal
+
+```bash
+python -m agents.chat            # default profile
+python -m agents.chat user456    # a different profile
+```
+
+Prints the plan, then answers follow-ups until you type `exit`. Answers stream
+as they are generated. Uses whichever provider `LLM_PROVIDER` selects.
+
 ## Testing
 
 ```bash
 pip install pytest
 python -m pytest tests/ -q
 ```
+
+77 tests, none of which need an API key. `tests/test_end_to_end.py` runs a stub
+OpenAI-compatible server on localhost and drives the advisor through the real
+HTTP client, so request construction, response parsing, and streaming are
+covered for real rather than mocked — what it cannot check is the quality of a
+real model's answer.
 
 ---
 
