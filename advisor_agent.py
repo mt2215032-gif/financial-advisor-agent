@@ -18,23 +18,16 @@ from mock_data import format_expenses_for_prompt, get_user_financial_data
 
 load_dotenv()
 
-# Claude Opus 5 rejects temperature/top_p/top_k, so depth is steered with
-# adaptive thinking + effort instead of a sampling temperature.
-MODEL = os.getenv("ANTHROPIC_MODEL", "claude-opus-5")
-EFFORT = os.getenv("ANTHROPIC_EFFORT", "medium")
-MAX_TOKENS = 16000
-
-
-class MissingAPIKeyError(RuntimeError):
-    """Raised when no Anthropic credential is available."""
-
-
-def _require_api_key():
-    if not os.getenv("ANTHROPIC_API_KEY"):
-        raise MissingAPIKeyError(
-            "ANTHROPIC_API_KEY is not set. Copy .env.example to .env and add "
-            "your key from https://console.anthropic.com/settings/keys"
-        )
+# Model config is shared with the agents/ package so the five implementations
+# cannot drift apart. Claude Opus 5 rejects temperature/top_p/top_k, so depth
+# is steered with adaptive thinking + effort instead of a sampling temperature.
+from agents.settings import (  # noqa: E402  (after load_dotenv by design)
+    EFFORT,
+    MAX_TOKENS,
+    MODEL,
+    MissingAPIKeyError,
+    require_api_key as _require_api_key,
+)
 
 
 def build_llm(streaming=False):

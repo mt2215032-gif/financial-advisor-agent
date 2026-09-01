@@ -84,6 +84,48 @@ python -m pytest tests/ -q
 
 ---
 
+## The same advisor in four agent frameworks
+
+`agents/` implements the advisor four ways, sharing one model config
+(`agents/settings.py`) and one set of deterministic money tools
+(`agents/tools.py`), so the implementations cannot drift apart.
+
+| Module | Pattern | Needs extras |
+| --- | --- | --- |
+| `agents/native_agent.py` | Anthropic SDK tool-use loop, no framework | no |
+| `agents/graph_agent.py` | LangGraph state machine, draft → review → revise cycle | no |
+| `agents/crew_agent.py` | CrewAI team: analyst → planner → writer | yes |
+| `agents/autogen_agent.py` | AutoGen conversation: analyst ↔ compliance reviewer | yes |
+
+```bash
+pip install -r requirements-agents.txt      # only for CrewAI / AutoGen
+
+python -m agents.native_agent "How long until user123 can put $60k down?"
+python -m agents.graph_agent user123
+python -m agents.crew_agent user123
+python -m agents.autogen_agent user123
+```
+
+The tools (`get_financial_profile`, `project_savings`, `time_to_goal`) do the
+money math in Python, so no implementation asks the model to compound interest
+in its head.
+
+### Corrections these implementations make
+
+The widely-circulated versions of these templates no longer run as written:
+
+| Issue | Why it breaks | Here |
+| --- | --- | --- |
+| `temperature=0` / `0.2` / `0.3` | Opus 5 rejects `temperature`, `top_p`, `top_k` with a 400 | Omitted; depth comes from adaptive thinking + `effort` |
+| `claude-3-5-sonnet-20241022` | Superseded; current IDs take no date suffix | `claude-opus-5`, configurable |
+| `from autogen import AssistantAgent` | That namespace is retired — `pyautogen` is now a shim over `autogen-agentchat`, whose agents are async | `autogen_agentchat.agents` + `AnthropicChatCompletionClient` |
+| CrewAI `llm=ChatAnthropic(...)` | Current CrewAI takes its own `LLM`, with a provider-prefixed id | `LLM(model="anthropic/claude-opus-5")` |
+| `response.content[0].text` | With thinking on, block 0 is a thinking block | Scans for text blocks |
+| Handling only the first `tool_use` block | Drops the rest of a parallel tool call; results must return in **one** user message | Runs every block, returns all results together |
+| `while True` around the tool loop | Never terminates if the model keeps calling tools | Bounded by `max_turns` |
+| Only `end_turn` / `tool_use` handled | `max_tokens`, `refusal`, `pause_turn` fall through and hang | All handled explicitly |
+| AutoGen model auto-detection | Guesses `claude-3-5-sonnet` with `function_calling: False`, silently disabling tools | Explicit `ModelInfo` |
+
 ## Extending it
 
 - **Real data** — replace `get_user_financial_data()` with a bank or aggregator
