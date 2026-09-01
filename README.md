@@ -60,18 +60,53 @@ recommendations instead of on mental math it might get wrong.
 
 ---
 
+## Providers
+
+The advisor runs on Claude, OpenAI, or open-source models. Pick one in the
+sidebar, or set the default with `LLM_PROVIDER`:
+
+| `LLM_PROVIDER` | Runs on | Needs |
+| --- | --- | --- |
+| `anthropic` *(default)* | Claude Opus 5 | `ANTHROPIC_API_KEY` |
+| `openai` | OpenAI API (`gpt-4o` by default) | `OPENAI_API_KEY` |
+| `ollama` | Local open-source models — Llama, Mistral, Qwen | nothing (runs on your machine) |
+| `compatible` | Any OpenAI-compatible endpoint — Groq, Together, OpenRouter, vLLM, LM Studio | `OPENAI_COMPATIBLE_API_KEY` + `..._BASE_URL` |
+
+Running fully local, no API key and no data leaving the machine:
+
+```bash
+# https://ollama.com
+ollama pull llama3.1
+LLM_PROVIDER=ollama streamlit run app.py
+```
+
+**The providers disagree about parameters, which is why `agents/providers.py`
+exists.** Claude Opus 5 *rejects* `temperature`, `top_p`, and `top_k` with a
+400 and takes adaptive thinking plus an effort level instead; OpenAI and Ollama
+take `temperature` and have no equivalent thinking config. Each provider
+declares what it accepts and only those parameters are sent — so switching is
+one environment variable, not an error.
+
+Because adaptive thinking returns a list of content blocks rather than a bare
+string, `_extract_text()` pulls out the text blocks.
+
 ## Configuration
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `ANTHROPIC_API_KEY` | *(required)* | Your Anthropic API key. |
-| `ANTHROPIC_MODEL` | `claude-opus-5` | Model to use. |
-| `ANTHROPIC_EFFORT` | `medium` | Reasoning depth: `low`, `medium`, `high`, `xhigh`, `max`. |
+| `LLM_PROVIDER` | `anthropic` | `anthropic`, `openai`, `ollama`, or `compatible`. |
+| `LLM_MODEL` | *(unset)* | Overrides the model for whichever provider is active. |
+| `LLM_TEMPERATURE` | `0.4` | Applied only to providers that accept it. |
+| `ANTHROPIC_API_KEY` | — | Required for `anthropic`. |
+| `ANTHROPIC_MODEL` | `claude-opus-5` | Claude model id. |
+| `ANTHROPIC_EFFORT` | `medium` | Reasoning depth: `low` … `max`. |
+| `OPENAI_API_KEY` | — | Required for `openai`. |
+| `OPENAI_MODEL` | `gpt-4o` | OpenAI model id. |
+| `OLLAMA_MODEL` | `llama3.1` | Local model tag. |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama endpoint. |
+| `OPENAI_COMPATIBLE_API_KEY` / `_BASE_URL` / `_MODEL` | — | Required for `compatible`. |
 
-Claude Opus 5 rejects `temperature`, `top_p`, and `top_k`, so response depth is
-controlled with adaptive thinking plus the effort level rather than a sampling
-temperature. Because adaptive thinking returns a list of content blocks rather
-than a bare string, `_extract_text()` pulls out the text blocks.
+See `.env.example` for the full annotated list.
 
 ---
 
@@ -92,7 +127,7 @@ python -m pytest tests/ -q
 
 | Module | Pattern | Needs extras |
 | --- | --- | --- |
-| `agents/native_agent.py` | Anthropic SDK tool-use loop, no framework | no |
+| `agents/native_agent.py` | Anthropic SDK tool-use loop, no framework (Claude only, by design) | no |
 | `agents/graph_agent.py` | LangGraph state machine, draft → review → revise cycle | no |
 | `agents/crew_agent.py` | CrewAI team: analyst → planner → writer | yes |
 | `agents/autogen_agent.py` | AutoGen conversation: analyst ↔ compliance reviewer | yes |

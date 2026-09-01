@@ -15,18 +15,11 @@ revision budget runs out.
 import operator
 from typing import Annotated
 
-from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
 from typing_extensions import TypedDict
 
-from agents.settings import (
-    MAX_TOKENS,
-    MODEL,
-    OUTPUT_CONFIG,
-    THINKING,
-    require_api_key,
-)
+from agents.providers import build_chat_model
 from agents.tools import get_financial_profile
 
 MAX_REVISIONS = 2
@@ -66,14 +59,12 @@ class AdvisorState(TypedDict):
 
 
 def _model():
-    """Opus 5 rejects temperature - adaptive thinking and effort replace it."""
-    require_api_key()
-    return ChatAnthropic(
-        model=MODEL,
-        max_tokens=MAX_TOKENS,
-        thinking=THINKING,
-        output_config=OUTPUT_CONFIG,
-    )
+    """The active provider's model - Claude, OpenAI, or an open-source one.
+
+    The provider layer sends only the parameters each accepts; Opus 5 rejects
+    temperature, OpenAI and Ollama have no adaptive-thinking equivalent.
+    """
+    return build_chat_model()
 
 
 def _text(message):
