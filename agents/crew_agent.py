@@ -15,17 +15,12 @@ Requires the optional extras:  pip install -r requirements-agents.txt
 try:
     from crewai import LLM, Agent, Crew, Process, Task
     from crewai.tools import tool
-except ImportError as err:
+except Exception as err:
     raise ImportError(
-        f"Missing dependency '{err.name}'. CrewAI is an optional extra:\n"
-        f"    pip install -r requirements-agents.txt"
+        f"CrewAI import failed.\n"
+        f"Original error: {type(err).__name__}: {err}\n\n"
+        f"Make sure CrewAI is installed in requirements.txt."
     ) from err
-
-from agents.settings import MAX_TOKENS, MODEL, require_api_key
-from agents.tools import get_financial_profile, project_savings, time_to_goal
-
-# CrewAI routes by a provider-prefixed model id.
-CREW_MODEL = f"anthropic/{MODEL}"
 
 
 # --- tools ---------------------------------------------------------------------
