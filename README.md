@@ -25,6 +25,11 @@ streamlit run app.py
 
 Get an API key at [console.anthropic.com](https://console.anthropic.com/settings/keys).
 
+> **Install from `requirements.txt`, not from the lab handout's pip line.**
+> `pip install openai langchain streamlit pandas` installs `openai` (unused here)
+> and leaves out `langchain-anthropic` and `python-dotenv`, so the app fails with
+> `ImportError: Missing dependency 'dotenv'` or `'langchain_anthropic'`.
+
 To run the agent without the UI:
 
 ```bash

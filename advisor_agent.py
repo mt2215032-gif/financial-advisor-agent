@@ -2,8 +2,16 @@
 
 import os
 
-from dotenv import load_dotenv
-from langchain_anthropic import ChatAnthropic
+try:
+    from dotenv import load_dotenv
+    from langchain_anthropic import ChatAnthropic
+except ImportError as err:
+    # The lab handout's `pip install openai langchain streamlit pandas` misses
+    # langchain-anthropic and python-dotenv, so point at the real install line.
+    raise ImportError(
+        f"Missing dependency '{err.name}'. Install this project's requirements:\n"
+        f"    pip install -r requirements.txt"
+    ) from err
 
 from advisor_prompt import advisor_template, followup_template
 from mock_data import format_expenses_for_prompt, get_user_financial_data
